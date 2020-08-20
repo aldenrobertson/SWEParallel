@@ -8,8 +8,6 @@ using namespace netCDF::exceptions;
 
 using namespace std;
 
-/*Lets parallise our script!*/
-/*MUst also think about the indexing. Am I doing rows or columns etc*/
 
 int main (int argc, char **argv) {
 	int gridsize = 190;
@@ -69,18 +67,7 @@ int main (int argc, char **argv) {
 	double topRowH[gridsize + 2];
 	double bottomRowH[gridsize + 2];
 	double num = 0;
-	if (rank == 0){                                   /*SORT THIS OUT*/
-		for (i = 0; i <= gridsize + 1; i++){
-			for (j = 0; j <= gridsize + 1; j++){
-				masterbuf[i][j] = num;
-				num = num + 1;
-				cout << masterbuf[i][j];
-				cout << " ";
-			}
-			cout << "\n";
-		}
-	}
-
+	/*Quite a lot of this is basically preamble*/
 	for (j = 0; j <= gridsize + 1; j++) {
 		for (i = 0; i <= gridsize + 1;i++) {
 			masterbufU[i][j] = 0;
@@ -105,7 +92,7 @@ int main (int argc, char **argv) {
 	}
 	double t1, t2; 
 	t1 = MPI_Wtime();
-        if (rank == 0){                                   /*SORT THIS OUT*/
+        if (rank == 0){                                  
                 for (i = 0; i <= gridsize + 1; i++){
                         for (j = 0; j <= gridsize + 1; j++){
                                 cout << masterbufHOLDER[i][j];
@@ -117,7 +104,7 @@ int main (int argc, char **argv) {
 
 	cout << "\n";
 
-	if (rank == 0){                                   /*SORT THIS OUT*/
+	if (rank == 0){                                   
                 for (i = 0; i <= gridsize + 1; i++){
                         for (j = 0; j <= gridsize + 1; j++){
                                 cout << masterbufUOLD[i][j];
@@ -135,8 +122,8 @@ int main (int argc, char **argv) {
 	cout << H << "\n";
 
         cout << "\n";
-	/*For each timestep I will scatter the (i,j) grid across the processors in columns then each processor will work on a column
-	with halo swapping and whatnot, then the master process (rank 0) will gather these to form the (i,j) grid at time n+1 and repeat.*/
+	/*I will scatter the (i,j) grid across the processors in columns then each processor will work on a column
+	with halo swapping and whatnot, then the master process (rank 0) will gather these to form the (i,j) grid at the end.*/
         MPI_Scatter(&masterbufU[0][0], jParallel * (gridsize + 2), MPI_DOUBLE, &bufU[0][0], jParallel * (gridsize + 2), MPI_DOUBLE, 0, MPI_COMM_WORLD);
         MPI_Scatter(&masterbufV[0][0], jParallel * (gridsize + 2), MPI_DOUBLE, &bufV[0][0], jParallel * (gridsize + 2), MPI_DOUBLE, 0, MPI_COMM_WORLD);
         MPI_Scatter(&masterbufH[0][0], jParallel * (gridsize + 2), MPI_DOUBLE, &bufH[0][0], jParallel * (gridsize + 2), MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -227,8 +214,6 @@ int main (int argc, char **argv) {
                 }
 
 		}
-
-
 
 		if (rank > 0 && rank < size - 1) {
 			for (j = 0; j <= gridsize + 1; j++) {
@@ -382,7 +367,7 @@ int main (int argc, char **argv) {
 			}
                 for (j = 0;j <= gridsize + 1;j++) {
                         for (i = 0; i <= jParallel - 1; i++) {
-                                bufUOLDER[i][j] = bufUOLD[i][j];           /*MUST THINK ABOUT INDEXES*/
+                                bufUOLDER[i][j] = bufUOLD[i][j];           
                                 bufVOLDER[i][j] = bufVOLD[i][j];
                                 bufHOLDER[i][j] = bufHOLD[i][j];
                         }
@@ -422,15 +407,13 @@ int main (int argc, char **argv) {
 		}
 	}
 	t2 = MPI_Wtime();
+	/*Now we read our final h_grid into a netcdf file*/
 	cout << "The size is "<< size << "\n"; 
 	cout << "Total time elapsed is " << t2-t1 << "\n\n";
 	MPI_Finalize();
 	if (rank == 0) {
-        cout << "\n";
-	cout << "DAta erad time \n";
-      // Create the file. The Replace parameter tells netCDF to overwrite
-      // this file, if it already exists.
-       NcFile dataFile("pog25sec.nc", NcFile::replace);
+
+       NcFile dataFile("output.nc", NcFile::replace);
 	cout << "\n Read the data successfully";
       // Create netCDF dimensions
        NcDim xDim = dataFile.addDim("x", gridsize+2);
@@ -442,18 +425,10 @@ int main (int argc, char **argv) {
        dims.push_back(xDim);
        dims.push_back(yDim);
        NcVar data = dataFile.addVar("data", ncDouble, dims);
-
-      // Write the data to the file. Although netCDF supports
-      // reading and writing subsets of data, in this case we write all
-      // the data in one operation.
+		
        data.putVar(masterbufH);
-      cout << "\n data read ok! \n";
+       cout << "\n data read ok! \n";
 
-      // The file will be automatically close when the NcFile object goes
-      // out of scope. This frees up any internal netCDF resources
-      // associated with the file, and flushes any buffers.
-
-      //cout << "*** SUCCESS writing example file simple_xy.nc!" << endl;
       }
 	return 0;
 }
